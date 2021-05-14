@@ -52,15 +52,13 @@ public class CreateDatacenter {
         DatacenterCharacteristics datacenterCharacteristics = getDatacenterCharacteristics(hosts);
 
         // Create the datacenter.
-        Datacenter datacenter = null;
         try {
-            datacenter = getDatacenter(hosts, datacenterCharacteristics);
+            Datacenter datacenter = getDatacenter(hosts, datacenterCharacteristics);
+            printStatusSuccessfulMessage(datacenter);
         } catch (Exception e) {
             System.out.println("Failed to create the datacenter");
             e.printStackTrace();
         }
-
-        printStatusSuccessfulMessage(datacenter);
     }
 
     private static void printStatusSuccessfulMessage(Datacenter datacenter) {
