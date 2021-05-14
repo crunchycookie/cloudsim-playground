@@ -23,7 +23,7 @@ public class DatacenterBuilder {
     String name;
     DatacenterCharacteristics datacenterCharacteristics;
     VmAllocationPolicy vmAllocationPolicy;
-    LinkedList<Storage> storages = new LinkedList<Storage>();
+    LinkedList<Storage> storages = new LinkedList<>();
     double schedulingInterval = 0;
 
     public DatacenterBuilder(String name) {
@@ -40,7 +40,7 @@ public class DatacenterBuilder {
         return this;
     }
 
-    public DatacenterBuilder setStorages(LinkedList<Storage> storages) {
+    public DatacenterBuilder withStorages(LinkedList<Storage> storages) {
         this.storages = storages;
         return this;
     }

@@ -62,7 +62,7 @@ public class HostBuilder {
     public Host build() {
 
         // Create processing elements;
-        List<Pe> processingElements = new ArrayList<Pe>();
+        List<Pe> processingElements = new ArrayList<>();
         for (int coreIndex = 0; coreIndex < this.numberOfCores; coreIndex++) {
             processingElements.add(new Pe(coreIndex, new PeProvisionerSimple(this.mipsPerCore)));
         }

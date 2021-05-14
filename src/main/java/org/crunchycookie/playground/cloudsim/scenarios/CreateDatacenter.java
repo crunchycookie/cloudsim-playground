@@ -63,16 +63,14 @@ public class CreateDatacenter {
 
     private static void printStatusSuccessfulMessage(Datacenter datacenter) {
 
-        StringBuilder datacenterStatus = new StringBuilder("Successfully created the datacenter. Here are some stats.");
-        datacenterStatus.append("\n");
-        datacenterStatus.append("Number of Hosts: " + datacenter.getHostList().size() + ". Let's check stats of a host.");
-        datacenterStatus.append("\n");
-        datacenterStatus.append("Number of cores: " + datacenter.getHostList().get(0).getNumberOfPes());
-        datacenterStatus.append("\n");
-        datacenterStatus.append("Amount of Ram(GB): " + datacenter.getHostList().get(0).getRam());
-        datacenterStatus.append("\n");
-        datacenterStatus.append("Amount of Storage(TB): " + datacenter.getHostList().get(0).getStorage());
-
+        String datacenterStatus = "Successfully created the datacenter. Here are some stats." + "\n" +
+                "Number of Hosts: " + datacenter.getHostList().size() + ". Let's check stats of a host." +
+                "\n" +
+                "Number of cores: " + datacenter.getHostList().get(0).getNumberOfPes() +
+                "\n" +
+                "Amount of Ram(GB): " + datacenter.getHostList().get(0).getRam() +
+                "\n" +
+                "Amount of Storage(TB): " + datacenter.getHostList().get(0).getStorage();
         System.out.println(datacenterStatus);
     }
 
@@ -87,7 +85,7 @@ public class CreateDatacenter {
 
     private static DatacenterCharacteristics getDatacenterCharacteristics(List<Host> hosts) {
 
-        DatacenterCharacteristics datacenterCharacteristics = new DatacenterCharacteristicsBuilder()
+        return new DatacenterCharacteristicsBuilder()
                 .withSystemArchitecture("x86")
                 .withOperatingSystem("Linux")
                 .withVmm("Xen")
@@ -98,12 +96,11 @@ public class CreateDatacenter {
                 .withCostPerUsingStorage(0.001)
                 .withHosts(hosts)
                 .build();
-        return datacenterCharacteristics;
     }
 
     private static List<Host> getHosts() {
 
-        List<Host> hosts = new ArrayList<Host>();
+        List<Host> hosts = new ArrayList<>();
         for (int index = 0; index < NUMBER_OF_HOSTS; index++) {
             hosts.add(
                     new HostBuilder(index)
