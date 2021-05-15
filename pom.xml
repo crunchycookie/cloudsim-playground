@@ -20,7 +20,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-math3</artifactId>
-            <version>${org.apache.commons.commons-math3.version}</version>
+            <version>${commons-math3.version}</version>
         </dependency>
         <dependency>
             <groupId>org.cloudbus.cloudsim</groupId>
@@ -57,7 +57,7 @@
     <properties>
         <maven.compiler.source>16</maven.compiler.source>
         <maven.compiler.target>16</maven.compiler.target>
-        <org.apache.commons.commons-math3.version>3.6.1</org.apache.commons.commons-math3.version>
+        <commons-math3.version>3.6.1</commons-math3.version>
         <maven-install-plugin.version>2.5.2</maven-install-plugin.version>
         <cloudsim-toolkit.version>3.0.3</cloudsim-toolkit.version>
         <cloudsim-framework-jar-location>path-to-the-cloud-sim-dependency-jar-file</cloudsim-framework-jar-location>
