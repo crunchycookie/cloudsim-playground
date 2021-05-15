@@ -85,6 +85,10 @@ custom scenario can be executed in this manner by changing `-Dexec.mainClass=` p
 
 Contributions, issues and feature requests are welcome.
 
+## Code style
+
+JAVA code style by google is followed.
+
 ## Author
 
 👤 **Tharindu Bandara**
