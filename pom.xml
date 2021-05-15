@@ -32,6 +32,19 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${exec-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>CreateDatacenterScenario</id>
+                        <configuration>
+                            <mainClass>org.crunchycookie.playground.cloudsim.examples.CreateDatacenter</mainClass>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-install-plugin</artifactId>
                 <version>${maven-install-plugin.version}</version>
@@ -60,6 +73,8 @@
         <commons-math3.version>3.6.1</commons-math3.version>
         <maven-install-plugin.version>2.5.2</maven-install-plugin.version>
         <cloudsim-toolkit.version>3.0.3</cloudsim-toolkit.version>
-        <cloudsim-framework-jar-location>path-to-the-cloud-sim-dependency-jar-file</cloudsim-framework-jar-location>
+        <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
+
+        <cloudsim-framework-jar-location>path-to-the-cloudsim-jar</cloudsim-framework-jar-location>
     </properties>
 </project>

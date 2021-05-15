@@ -81,6 +81,29 @@ Amount of Storage(TB): 10
 Please note that the `-Dexec.mainClass=` parameter is equal to the `CreateDatacenter` scenario class. Therefore, any 
 custom scenario can be executed in this manner by changing `-Dexec.mainClass=` parameter value to the corresponding class.
 
+Using the full class path everytime isn't much convenient. Therefore, a custom scenario class path
+can be configured in the maven exec plugin and an alias can be used instead of the full class path. 
+This is already done for the CreateDatacenter scenario. Go to the parent pom file and observe the 
+`exec-maven-plugin` configuration. The following code block can be observed.
+```xml
+...
+<execution>
+   <id>CreateDatacenterScenario</id>
+   <configuration>
+       <mainClass>org.crunchycookie.playground.cloudsim.examples.CreateDatacenter</mainClass>
+   </configuration>
+</execution>
+...
+```
+This configuration tells Maven exec plugin that the provided id value `CreateDatacenterScenario` 
+refers to the provided main class. Any custom scenario can be configured in this manner. Now, to 
+execute the main class all it requires is to execute the following CLI command.
+
+`mvn exec:java@CreateDatacenterScenario`
+
+The same status log can be observed.
+
+
 ## 🤝 Contributing
 
 Contributions, issues and feature requests are welcome.
