@@ -17,21 +17,23 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.PriorityQueue;
 import java.util.stream.Collectors;
 import org.apache.commons.math3.util.Pair;
 import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.CloudletSchedulerSpaceShared;
 import org.cloudbus.cloudsim.DatacenterBroker;
 import org.cloudbus.cloudsim.Log;
-import org.cloudbus.cloudsim.UtilizationModel;
-import org.cloudbus.cloudsim.UtilizationModelFull;
 import org.cloudbus.cloudsim.Vm;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.crunchycookie.playground.cloudsim.models.EC2InstanceCharacteristics;
 import org.crunchycookie.playground.cloudsim.models.EC2VMCandidate;
+import org.crunchycookie.playground.cloudsim.models.EC2Vm;
 import org.crunchycookie.playground.cloudsim.models.Task;
 import org.crunchycookie.playground.cloudsim.scenarios.DynamicWorkloadSubmission;
 
@@ -39,27 +41,19 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
 
   private final static String WORKLOAD_FILE_NAME = "workload-file.txt";
 
+  private final static int CLOUDLET_ID_BASE = 5000;
   private final static int CUSTOM_TAG_BASE = 55000;
   private final static int CUSTOM_TAG_HANDLE_NEXT_WORKLOAD = CUSTOM_TAG_BASE + 1;
-
-  private List<Pair<Instant, Cloudlet>> tasksList;
   private final ThreadLocal<Boolean> INITIAL_CLOUDLET_SUBMISSION_TO_AVOID = new ThreadLocal<>();
+
+  private List<Pair<Instant, Task>> tasksList;
+  private int cloudletIdCount = CLOUDLET_ID_BASE;
+
+  // Each new VM must own a priority queue to hold the excess tasks allocated to itself.
+  private Map<Integer, PriorityQueue<Pair<Instant, Cloudlet>>> vmTaskQueues = new HashMap<>();
 
   public DynamicWorkloadDatacenterBroker(String name) throws Exception {
     super(name);
-  }
-
-  @Override
-  protected void processVmCreate(SimEvent ev) {
-
-    // Upon calling the super method, a cloudlet submission is triggered but we need avoid it as the
-    // Cloudlet submission is handled separately for the dynamic workload.
-    INITIAL_CLOUDLET_SUBMISSION_TO_AVOID.set(true);
-    try {
-      super.processVmCreate(ev);
-    } finally {
-      INITIAL_CLOUDLET_SUBMISSION_TO_AVOID.set(false);
-    }
   }
 
   /**
@@ -67,26 +61,51 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
    */
   @Override
   protected void submitCloudlets() {
-    if (INITIAL_CLOUDLET_SUBMISSION_TO_AVOID.get()) {
-      return;
-    }
 
-    super.submitCloudlets();
+    // Vms are created and ready. Trigger initial cloudlet submission.
+    sendNow(this.getId(), CUSTOM_TAG_HANDLE_NEXT_WORKLOAD);
   }
 
+  /**
+   * This method is called when VMs are created and ready to execute tasks.
+   *
+   * @param workLoad
+   */
   protected void handleWorkload(Object workLoad) {
 
-    // Handle the workload. This should be a List containing Pair<Instant, Cloudlet>.
-    if (!(workLoad instanceof List)) {
-      Log.printLine("Error: Workload is not compatible");
-      return;
+    // Allocate current workload to VMs Queues.
+    if (workLoad != null) {
+      for (Pair<Instant, Task> task : (List<Pair<Instant, Task>>) workLoad) {
+        allocateTaskToOptimumVMQueue(task);
+      }
     }
-
-    // Let's trust that list only includes Cloudlets, and submit cloudlets.
-    submitCloudletList((List<? extends Cloudlet>) workLoad);
 
     // Schedule next workload by referring to the workload tasks.
     scheduleNextWorkload();
+  }
+
+  private void allocateTaskToOptimumVMQueue(Pair<Instant, Task> task) {
+    for (Vm vm : getVmsCreatedList()) {
+      if (isVMMemoryEnoughToRun(task, vm)) {
+        if (vm.)
+//        addTaskToVMQueue(task, vm);
+        break;
+      }
+    }
+  }
+
+  private void addTaskToVMQueue(Pair<Instant, Task> task, Vm vm) {
+    Cloudlet cloudlet = task.getValue().getCloudletForTheTargetVm(cloudletIdCount++, vm);
+    cloudlet.setUserId(this.getId());
+    cloudlet.setVmId(vm.getId());
+    vmTaskQueues.get(vm.getId()).add(new Pair<>(
+        task.getKey(),
+        cloudlet
+    ));
+  }
+
+  private boolean isVMMemoryEnoughToRun(Pair<Instant, Task> task, Vm vm) {
+    return task.getValue().getMinimumMemoryToExecute() <= vm.getRam();
   }
 
   private void scheduleNextWorkload() {
@@ -97,7 +116,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
         .findFirst()
         .ifPresent(nextTask -> {
               // Get all cloudlets scheduled for the same submission time.
-              List<Pair<Instant, Cloudlet>> nextWorkload = getAllTasksScheduledAtTheSameTime(nextTask);
+              List<Pair<Instant, Task>> nextWorkload = getAllTasksScheduledAtTheSameTime(nextTask);
 
               // Schedule identified workload to it's submission time.
               send(this.getId(), Duration.between(currentSimulationTime, getNextWorkloadStartTime(
@@ -110,15 +129,15 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
         );
   }
 
-  private Instant getNextWorkloadStartTime(List<Pair<Instant, Cloudlet>> nextWorkload) {
+  private Instant getNextWorkloadStartTime(List<Pair<Instant, Task>> nextWorkload) {
     return nextWorkload.get(0).getKey();
   }
 
-  private List<Pair<Instant, Cloudlet>> getAllTasksScheduledAtTheSameTime(
-      Pair<Instant, Cloudlet> immediatelyExecutableCloudlet) {
+  private List<Pair<Instant, Task>> getAllTasksScheduledAtTheSameTime(
+      Pair<Instant, Task> immediateTask) {
 
     return tasksList.stream()
-        .filter(i -> i.getKey().equals(immediatelyExecutableCloudlet.getKey()))
+        .filter(i -> i.getKey().equals(immediateTask.getKey()))
         .collect(Collectors.toList());
   }
 
@@ -152,48 +171,39 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
       throw new RuntimeException("Unable to get the tasks");
     }
 
-    // Convert tasks to Cloudlets and persist within the broker.
-    Log.printLine("Deriving cloudlets...");
-    this.tasksList = getCloudletsAgainstSortedSubmissionTime(tasks);
-
-    // Trigger initial cloudlet submission. Cloudlet
-    sendNow(this.getId(), CUSTOM_TAG_HANDLE_NEXT_WORKLOAD);
+    // Prepare tasks list.
+    this.tasksList = getTasksAgainstSubmissionTime(tasks);
 
     // Derive the optimum list of VMs to create, and submit them to the broker.
     Log.printLine("Evaluating tasks and deriving the optimum VM list...");
-    List<Vm> vmList = getOptimizedVmList(tasks);
+    List<EC2Vm> vmList = getOptimizedVmList(tasks);
+    initVmTaskQueues(vmList);
+
     this.submitVmList(vmList);
 
     // Start the broker.
     super.startEntity();
   }
 
-  private List<Pair<Instant, Cloudlet>> getCloudletsAgainstSortedSubmissionTime(
+  private void initVmTaskQueues(List<EC2Vm> vmList) {
+
+    for (EC2Vm vm : vmList) {
+      vmTaskQueues.put(vm.getId(), new PriorityQueue<>((taskA, taskB) -> {
+        if (taskA.getKey().equals(taskB.getKey())) {
+          return 0;
+        }
+        return taskA.getKey().isBefore(taskB.getKey()) ? 1 : -1;
+      }));
+    }
+  }
+
+  private List<Pair<Instant, Task>> getTasksAgainstSubmissionTime(
       Optional<List<Task>> tasks) {
 
-    List<Pair<Instant, Cloudlet>> cloudletsWithSubmissionTime = new ArrayList<>();
-    for (int id = 0; id < tasks.get().size(); id++) {
-      Task task = tasks.get().get(id);
-
-      // Cloudlet properties
-      int cloudletId = id;
-      long length = task.getMis();
-      long fileSize = 300;
-      long outputSize = 300;
-      UtilizationModel utilizationModel = new UtilizationModelFull();
-
-      Cloudlet cloudlet = new Cloudlet(cloudletId, length, 1, fileSize, outputSize,
-          utilizationModel, utilizationModel, utilizationModel);
-
-      // Set broker ID.
-      cloudlet.setUserId(this.getId());
-
-      // This will be orchestrated by the broker at a later stage.
-      // cloudlet.setVmId(0);
-
-      cloudletsWithSubmissionTime
-          .add(new Pair<>(Instant.parse(task.getSubmissionTime()), cloudlet));
-    }
+    List<Pair<Instant, Task>> cloudletsWithSubmissionTime = tasks.get()
+        .stream()
+        .map(t -> new Pair(Instant.parse(t.getSubmissionTime()), t))
+        .collect(Collectors.toList());
 
     // Sort cloudlets according to the submission time ascending order.
     cloudletsWithSubmissionTime.sort(Comparator.comparing(Pair::getKey));
@@ -201,7 +211,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     return cloudletsWithSubmissionTime;
   }
 
-  private List<Vm> getOptimizedVmList(Optional<List<Task>> tasks) {
+  private List<EC2Vm> getOptimizedVmList(Optional<List<Task>> tasks) {
 
     // Analyze the tasks list and derive number and types of VMs required.
     List<EC2VMCandidate> vmCandidateList = new ArrayList<>();
@@ -228,7 +238,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     }
 
     // Convert vm candidates to CloudSim VMs and set them in the broker.
-    List<Vm> vmList = new ArrayList<>();
+    List<EC2Vm> vmList = new ArrayList<>();
     for (int id = 0; id < vmCandidateList.size(); id++) {
       EC2InstanceCharacteristics vmCharacteristics = EC2_INSTANCE_TYPES.get(vmCandidateList.get(id)
           .getType());
@@ -238,20 +248,17 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     return vmList;
   }
 
-  private Vm getVm(int id, EC2InstanceCharacteristics vmCharacteristics) {
+  private EC2Vm getVm(int id, EC2InstanceCharacteristics vmCharacteristics) {
 
     // VM description.
     int vmId = id;
     int mips = vmCharacteristics.getMIPS();
-    long size = 10000; // image size (MB)
     int ram = vmCharacteristics.getMemoryInGB() * 1024; // vm memory (MB)
-    long bw = 1000;
     int pesNumber = vmCharacteristics.getNumberOfECU(); // number of cpus
-    String vmm = "Xen"; // VMM name
 
     // Create VM.
-    return new Vm(vmId, this.getId(), mips, pesNumber, ram, bw, size, vmm,
-        new CloudletSchedulerSpaceShared());
+    return new EC2Vm(vmId, this.getId(), mips, pesNumber, ram,
+        vmCharacteristics.getHourlyRateInUSD(), new CloudletSchedulerSpaceShared());
   }
 
   private Optional<EC2InstanceCharacteristics> getEC2InstanceCandidate(Task task) {

@@ -8,6 +8,11 @@
 
 package org.crunchycookie.playground.cloudsim.models;
 
+import org.cloudbus.cloudsim.Cloudlet;
+import org.cloudbus.cloudsim.UtilizationModel;
+import org.cloudbus.cloudsim.UtilizationModelFull;
+import org.cloudbus.cloudsim.Vm;
+
 public class Task {
 
   private String submissionTime;
@@ -58,5 +63,20 @@ public class Task {
 
   public void setWallClockTime(int wallClockTime) {
     this.wallClockTime = wallClockTime;
+  }
+
+  public Cloudlet getCloudletForTheTargetVm(int id, Vm vm) {
+
+    // Cloudlet properties.
+    int cloudletId = id;
+    long length = this.getMis();
+    long fileSize = 300;
+    long outputSize = 300;
+
+    // Asssumption: BW is utilized as per the same rate as with memory.
+    return new Cloudlet(cloudletId, length, 1, fileSize, outputSize,
+        new UtilizationModelFull(),
+        new MinThreshouldBasedUtilizationModel(minimumMemoryToExecute / vm.getRam()),
+        new MinThreshouldBasedUtilizationModel(minimumMemoryToExecute / vm.getRam()));
   }
 }
