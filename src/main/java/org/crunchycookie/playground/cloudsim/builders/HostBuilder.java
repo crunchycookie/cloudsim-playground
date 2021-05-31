@@ -73,9 +73,9 @@ public class HostBuilder {
 
     return new Host(
         this.id,
-        new RamProvisionerSimple(this.amountOfRamInGBs),
+        new RamProvisionerSimple(this.amountOfRamInGBs * 1024),
         new BwProvisionerSimple(this.bandwidth),
-        this.amountOfStorageInTBs,
+        this.amountOfStorageInTBs * 1024 * 1024,
         processingElements,
         new VmSchedulerTimeShared(processingElements)
     );

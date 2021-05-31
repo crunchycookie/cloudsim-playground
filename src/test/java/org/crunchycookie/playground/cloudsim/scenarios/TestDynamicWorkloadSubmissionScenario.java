@@ -11,7 +11,7 @@ package org.crunchycookie.playground.cloudsim.scenarios;
 import java.io.File;
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.io.FileUtils;
@@ -28,9 +28,12 @@ public class TestDynamicWorkloadSubmissionScenario {
     Instant currentTime = Instant.now();
     File workloadFile = new File("src/test/resources/workload-file.txt");
     FileUtils.writeLines(workloadFile, List.of(
-        getTaskString(currentTime, 10000, 2000, 1000, 2),
-        getTaskString(currentTime, 15000, 1500, 1500, 4),
-        getTaskString(currentTime, 22000, 3200, 3400, 3)
+        getTaskString(currentTime.plus(4, ChronoUnit.SECONDS), 10000, 2000,
+            1000, 2),
+        getTaskString(currentTime.plus(6, ChronoUnit.SECONDS), 15000, 1500,
+            1500, 4),
+        getTaskString(currentTime.plus(8, ChronoUnit.SECONDS), 22000, 3200,
+            3400, 3)
     ));
 
     Assertions.assertTrue(DynamicWorkloadSubmissionScenario.start(workloadFile));

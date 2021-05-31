@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -41,13 +42,15 @@ import org.crunchycookie.playground.cloudsim.schedulers.ExternalyManagedCloudlet
 public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
 
   private final static int CLOUDLET_ID_BASE = 5000;
+  private int cloudletIdCount = CLOUDLET_ID_BASE;
+
   private final static int CUSTOM_TAG_BASE = 55000;
   private final static int CUSTOM_TAG_HANDLE_NEXT_WORKLOAD = CUSTOM_TAG_BASE + 1;
-  private final ThreadLocal<Boolean> INITIAL_CLOUDLET_SUBMISSION_TO_AVOID = new ThreadLocal<>();
 
   private File workloadFile;
   private List<Pair<Instant, Task>> tasksList;
-  private int cloudletIdCount = CLOUDLET_ID_BASE;
+  private long initialTasksCountOnList = 0;
+  private long remainingTasks = 0;
 
   // Each new VM must own a priority queue to hold the excess tasks allocated to itself.
   private Map<Integer, PriorityQueue<Pair<Instant, Cloudlet>>> vmTaskQueues = new HashMap<>();
@@ -66,12 +69,43 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
   @Override
   protected void processCloudletReturn(SimEvent ev) {
     Cloudlet cloudlet = (Cloudlet) ev.getData();
+
+    /*
+    Since a cloudlet has been freed from the VM, pending tasks in the corresponding VM maybe
+    executed.
+     */
+    handleWaitingTasksInVMQueue(cloudlet);
+
+    getCloudletReceivedList().add(cloudlet);
+    Log.printLine(CloudSim.clock() + ": " + getName() + ": Cloudlet " + cloudlet.getCloudletId()
+        + " received");
+    cloudletsSubmitted--;
+    if (remainingTasks == 0 && isAllVMQueuesEmpty() && cloudletsSubmitted == 0) {
+      // All cloudlets executed.
+      Log.printLine(CloudSim.clock() + ": " + getName() + ": All Cloudlets executed. Finishing...");
+      clearDatacenters();
+      finishExecution();
+    }
+  }
+
+  private void handleWaitingTasksInVMQueue(Cloudlet cloudlet) {
     int vmId = cloudlet.getVmId();
     PriorityQueue<Pair<Instant, Cloudlet>> queue = vmTaskQueues.get(vmId);
-    if (!queue.isEmpty()) {
+    ExternalyManagedCloudletSchedulerSpaceShared scheduler
+        = (ExternalyManagedCloudletSchedulerSpaceShared) getVmsCreatedList().get(vmId)
+        .getCloudletScheduler();
+    if (!queue.isEmpty() && isEnoughIdleCoresAreAvailable(queue, scheduler)) {
       submitCloudletToDatacenter(getVmsCreatedList().get(vmId), queue.remove().getValue());
     }
-    super.processCloudletReturn(ev);
+  }
+
+  private boolean isEnoughIdleCoresAreAvailable(PriorityQueue<Pair<Instant, Cloudlet>> queue,
+      ExternalyManagedCloudletSchedulerSpaceShared scheduler) {
+    return scheduler.getIdleCoresCount() >= queue.peek().getValue().getNumberOfPes();
+  }
+
+  private boolean isAllVMQueuesEmpty() {
+    return vmTaskQueues.values().stream().allMatch(AbstractCollection::isEmpty);
   }
 
   /**
@@ -98,6 +132,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     if (workLoad != null) {
       for (Pair<Instant, Task> task : (List<Pair<Instant, Task>>) workLoad) {
         handleTask(task);
+        remainingTasks = initialTasksCountOnList--;
       }
     }
 
@@ -163,8 +198,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
 
               // Schedule identified workload to it's submission time.
               send(this.getId(), Duration.between(currentSimulationTime, getNextWorkloadStartTime(
-                  nextWorkload)).toMillis(), CUSTOM_TAG_HANDLE_NEXT_WORKLOAD, nextWorkload.stream()
-                  .map(Pair::getValue));
+                  nextWorkload)).toMillis(), CUSTOM_TAG_HANDLE_NEXT_WORKLOAD, nextWorkload);
 
               // Remove already scheduled workload from the list.
               tasksList.removeIf(i -> i.getKey().equals(getNextWorkloadStartTime(nextWorkload)));
@@ -214,7 +248,8 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     }
 
     // Prepare tasks list.
-    this.tasksList = getTasksAgainstSubmissionTime(tasks);
+    this.tasksList = getTasksAgainstSubmissionTime(tasks.get());
+    updateTasksTrackers();
 
     // Derive the optimum list of VMs to create, and submit them to the broker.
     Log.printLine("Evaluating tasks and deriving the optimum VM list...");
@@ -225,6 +260,11 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
 
     // Start the broker.
     super.startEntity();
+  }
+
+  private void updateTasksTrackers() {
+    initialTasksCountOnList = this.tasksList.size();
+    remainingTasks = initialTasksCountOnList;
   }
 
   private void initVmTaskQueues(List<EC2Vm> vmList) {
@@ -239,17 +279,12 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     }
   }
 
-  private List<Pair<Instant, Task>> getTasksAgainstSubmissionTime(
-      Optional<List<Task>> tasks) {
+  private List<Pair<Instant, Task>> getTasksAgainstSubmissionTime(List<Task> tasks) {
 
-    List<Pair<Instant, Task>> cloudletsWithSubmissionTime = tasks.get().stream()
-        .map(t -> new Pair(Instant.parse(t.getSubmissionTime()), t))
+    return tasks.stream()
+        .map(t -> new Pair<>(Instant.parse(t.getSubmissionTime()), t))
+        .sorted(Comparator.comparing(Pair::getKey))
         .collect(Collectors.toList());
-
-    // Sort cloudlets according to the submission time ascending order.
-    cloudletsWithSubmissionTime.sort(Comparator.comparing(Pair::getKey));
-
-    return cloudletsWithSubmissionTime;
   }
 
   private List<EC2Vm> getOptimizedVmList(Optional<List<Task>> tasks) {
