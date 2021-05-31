@@ -9,7 +9,6 @@
 package org.crunchycookie.playground.cloudsim.models;
 
 import org.cloudbus.cloudsim.Cloudlet;
-import org.cloudbus.cloudsim.UtilizationModel;
 import org.cloudbus.cloudsim.UtilizationModelFull;
 import org.cloudbus.cloudsim.Vm;
 
@@ -78,5 +77,22 @@ public class Task {
         new UtilizationModelFull(),
         new MinThreshouldBasedUtilizationModel(minimumMemoryToExecute / vm.getRam()),
         new MinThreshouldBasedUtilizationModel(minimumMemoryToExecute / vm.getRam()));
+  }
+
+  @Override
+  public String toString() {
+
+    StringBuilder sb = new StringBuilder();
+    sb.append(getSubmissionTime());
+    sb.append(" ");
+    sb.append(getMis());
+    sb.append(" ");
+    sb.append(getMinimumMemoryToExecute());
+    sb.append(" ");
+    sb.append(getMinimumStorageToExecute());
+    sb.append(" ");
+    sb.append(getWallClockTime());
+
+    return sb.toString();
   }
 }

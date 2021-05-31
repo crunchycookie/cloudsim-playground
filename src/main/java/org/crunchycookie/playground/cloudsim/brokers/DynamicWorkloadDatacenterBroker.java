@@ -25,35 +25,53 @@ import java.util.PriorityQueue;
 import java.util.stream.Collectors;
 import org.apache.commons.math3.util.Pair;
 import org.cloudbus.cloudsim.Cloudlet;
-import org.cloudbus.cloudsim.CloudletSchedulerSpaceShared;
+import org.cloudbus.cloudsim.CloudletScheduler;
 import org.cloudbus.cloudsim.DatacenterBroker;
 import org.cloudbus.cloudsim.Log;
 import org.cloudbus.cloudsim.Vm;
 import org.cloudbus.cloudsim.core.CloudSim;
+import org.cloudbus.cloudsim.core.CloudSimTags;
 import org.cloudbus.cloudsim.core.SimEvent;
 import org.crunchycookie.playground.cloudsim.models.EC2InstanceCharacteristics;
 import org.crunchycookie.playground.cloudsim.models.EC2VMCandidate;
 import org.crunchycookie.playground.cloudsim.models.EC2Vm;
 import org.crunchycookie.playground.cloudsim.models.Task;
-import org.crunchycookie.playground.cloudsim.scenarios.DynamicWorkloadSubmission;
+import org.crunchycookie.playground.cloudsim.schedulers.ExternalyManagedCloudletSchedulerSpaceShared;
 
 public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
-
-  private final static String WORKLOAD_FILE_NAME = "workload-file.txt";
 
   private final static int CLOUDLET_ID_BASE = 5000;
   private final static int CUSTOM_TAG_BASE = 55000;
   private final static int CUSTOM_TAG_HANDLE_NEXT_WORKLOAD = CUSTOM_TAG_BASE + 1;
   private final ThreadLocal<Boolean> INITIAL_CLOUDLET_SUBMISSION_TO_AVOID = new ThreadLocal<>();
 
+  private File workloadFile;
   private List<Pair<Instant, Task>> tasksList;
   private int cloudletIdCount = CLOUDLET_ID_BASE;
 
   // Each new VM must own a priority queue to hold the excess tasks allocated to itself.
   private Map<Integer, PriorityQueue<Pair<Instant, Cloudlet>>> vmTaskQueues = new HashMap<>();
 
-  public DynamicWorkloadDatacenterBroker(String name) throws Exception {
+  public DynamicWorkloadDatacenterBroker(String name, File workloadFile) throws Exception {
     super(name);
+    this.workloadFile = workloadFile;
+  }
+
+  /**
+   * When cloudlet is returned, vm core become available. Now we need to check and allocate any
+   * waiting tasks in the vm queue.
+   *
+   * @param ev
+   */
+  @Override
+  protected void processCloudletReturn(SimEvent ev) {
+    Cloudlet cloudlet = (Cloudlet) ev.getData();
+    int vmId = cloudlet.getVmId();
+    PriorityQueue<Pair<Instant, Cloudlet>> queue = vmTaskQueues.get(vmId);
+    if (!queue.isEmpty()) {
+      submitCloudletToDatacenter(getVmsCreatedList().get(vmId), queue.remove().getValue());
+    }
+    super.processCloudletReturn(ev);
   }
 
   /**
@@ -73,10 +91,13 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
    */
   protected void handleWorkload(Object workLoad) {
 
-    // Allocate current workload to VMs Queues.
+    /*
+    Current workload either submitted to the datacenter if vm has idle cores, or persisted in the
+    vm queues.
+     */
     if (workLoad != null) {
       for (Pair<Instant, Task> task : (List<Pair<Instant, Task>>) workLoad) {
-        allocateTaskToOptimumVMQueue(task);
+        handleTask(task);
       }
     }
 
@@ -84,20 +105,42 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     scheduleNextWorkload();
   }
 
-  private void allocateTaskToOptimumVMQueue(Pair<Instant, Task> task) {
+  private void handleTask(Pair<Instant, Task> task) {
     for (Vm vm : getVmsCreatedList()) {
       if (isVMMemoryEnoughToRun(task, vm)) {
-        if (vm.)
-//        addTaskToVMQueue(task, vm);
+        allocateTask(task, vm);
         break;
       }
     }
   }
 
-  private void addTaskToVMQueue(Pair<Instant, Task> task, Vm vm) {
+  private void allocateTask(Pair<Instant, Task> task, Vm vm) {
+    CloudletScheduler cloudletScheduler = vm.getCloudletScheduler();
+    if (cloudletScheduler instanceof ExternalyManagedCloudletSchedulerSpaceShared) {
+      int idleCoresCount = ((ExternalyManagedCloudletSchedulerSpaceShared) cloudletScheduler)
+          .getIdleCoresCount();
+      Cloudlet cloudlet = getCloudlet(task, vm);
+      if (idleCoresCount < 1) {
+        addTaskToVMQueue(task, vm, cloudlet);
+      } else {
+        submitCloudletToDatacenter(vm, cloudlet);
+      }
+    }
+  }
+
+  private void submitCloudletToDatacenter(Vm vm, Cloudlet cloudlet) {
+    sendNow(getVmsToDatacentersMap().get(vm.getId()), CloudSimTags.CLOUDLET_SUBMIT, cloudlet);
+    cloudletsSubmitted++;
+  }
+
+  private Cloudlet getCloudlet(Pair<Instant, Task> task, Vm vm) {
     Cloudlet cloudlet = task.getValue().getCloudletForTheTargetVm(cloudletIdCount++, vm);
     cloudlet.setUserId(this.getId());
     cloudlet.setVmId(vm.getId());
+    return cloudlet;
+  }
+
+  private void addTaskToVMQueue(Pair<Instant, Task> task, Vm vm, Cloudlet cloudlet) {
     vmTaskQueues.get(vm.getId()).add(new Pair<>(
         task.getKey(),
         cloudlet
@@ -164,8 +207,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
   public void startEntity() {
 
     // Read workload file and obtain all the tasks.
-    Log.printLine("Reading workload tasks from " + WORKLOAD_FILE_NAME + "...");
-    Optional<List<Task>> tasks = getTasksList();
+    Optional<List<Task>> tasks = getTasksList(workloadFile);
     if (tasks.isEmpty()) {
       Log.printLine("Could not find the workload file thus cannot start the broker.");
       throw new RuntimeException("Unable to get the tasks");
@@ -200,8 +242,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
   private List<Pair<Instant, Task>> getTasksAgainstSubmissionTime(
       Optional<List<Task>> tasks) {
 
-    List<Pair<Instant, Task>> cloudletsWithSubmissionTime = tasks.get()
-        .stream()
+    List<Pair<Instant, Task>> cloudletsWithSubmissionTime = tasks.get().stream()
         .map(t -> new Pair(Instant.parse(t.getSubmissionTime()), t))
         .collect(Collectors.toList());
 
@@ -258,7 +299,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
 
     // Create VM.
     return new EC2Vm(vmId, this.getId(), mips, pesNumber, ram,
-        vmCharacteristics.getHourlyRateInUSD(), new CloudletSchedulerSpaceShared());
+        vmCharacteristics.getHourlyRateInUSD(), new ExternalyManagedCloudletSchedulerSpaceShared());
   }
 
   private Optional<EC2InstanceCharacteristics> getEC2InstanceCandidate(Task task) {
@@ -283,10 +324,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     return ec2VMType;
   }
 
-  private Optional<List<Task>> getTasksList() {
-
-    File workloadFile = new File(DynamicWorkloadSubmission.class.getClassLoader().getResource(
-        WORKLOAD_FILE_NAME).getFile());
+  private Optional<List<Task>> getTasksList(File workloadFile) {
 
     List<Task> tasks = null;
     try {

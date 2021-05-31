@@ -27,6 +27,18 @@
             <artifactId>cloudsim-toolkit</artifactId>
             <version>${cloudsim-toolkit.version}</version>
         </dependency>
+        <!-- junit 5, unit test -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit-jupiter-engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>${commons-io.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -64,6 +76,11 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+            </plugin>
         </plugins>
     </build>
 
@@ -74,6 +91,9 @@
         <maven-install-plugin.version>2.5.2</maven-install-plugin.version>
         <cloudsim-toolkit.version>3.0.3</cloudsim-toolkit.version>
         <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
+        <maven-surefire-plugin.version>2.22.0</maven-surefire-plugin.version>
+        <junit-jupiter-engine.version>5.3.1</junit-jupiter-engine.version>
+        <commons-io.version>2.4</commons-io.version>
 
         <cloudsim-framework-jar-location>path-to-the-cloudsim-jar</cloudsim-framework-jar-location>
     </properties>

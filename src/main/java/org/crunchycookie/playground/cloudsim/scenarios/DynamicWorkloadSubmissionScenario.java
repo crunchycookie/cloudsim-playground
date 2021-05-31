@@ -8,22 +8,25 @@
 
 package org.crunchycookie.playground.cloudsim.scenarios;
 
+import java.io.File;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
-import java.util.TimeZone;
+import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.Datacenter;
 import org.cloudbus.cloudsim.DatacenterBroker;
 import org.cloudbus.cloudsim.DatacenterCharacteristics;
 import org.cloudbus.cloudsim.Host;
-import org.cloudbus.cloudsim.Vm;
+import org.cloudbus.cloudsim.Log;
 import org.cloudbus.cloudsim.VmAllocationPolicySimple;
 import org.cloudbus.cloudsim.core.CloudSim;
+import org.crunchycookie.playground.cloudsim.brokers.DynamicWorkloadDatacenterBroker;
 import org.crunchycookie.playground.cloudsim.builders.DatacenterBuilder;
 import org.crunchycookie.playground.cloudsim.builders.DatacenterCharacteristicsBuilder;
 import org.crunchycookie.playground.cloudsim.builders.HostBuilder;
 
-public class DynamicWorkloadSubmission {
+public class DynamicWorkloadSubmissionScenario {
 
   private final static int NUMBER_OF_HOSTS = 500;
 
@@ -34,6 +37,8 @@ public class DynamicWorkloadSubmission {
   private final static int AMOUNT_OF_RAM_PER_HOST_IN_GB = 64;
 
   private final static int AMOUNT_OF_STORAGE_PER_HOST_IN_TB = 10;
+
+  private final static String WORKLOAD_FILE_NAME = "workload-file.txt";
 
   /**
    * Creates main() to run this example.
@@ -63,6 +68,7 @@ public class DynamicWorkloadSubmission {
     } catch (Exception e) {
       System.out.println("Failed to create the datacenter");
       e.printStackTrace();
+      return false;
     }
 
     // Create broker.
@@ -76,14 +82,47 @@ public class DynamicWorkloadSubmission {
 
   }
 
-  private static DatacenterBroker createBroker() {
+  /**
+   * Prints the Cloudlet objects.
+   *
+   * @param list list of Cloudlets
+   */
+  private static void printCloudletList(List<Cloudlet> list) {
+    int size = list.size();
+    Cloudlet cloudlet;
 
+    String indent = "    ";
+    Log.printLine();
+    Log.printLine("========== OUTPUT ==========");
+    Log.printLine("Cloudlet ID" + indent + "STATUS" + indent
+        + "Data center ID" + indent + "VM ID" + indent + "Time" + indent
+        + "Start Time" + indent + "Finish Time");
+
+    DecimalFormat dft = new DecimalFormat("###.##");
+    for (int i = 0; i < size; i++) {
+      cloudlet = list.get(i);
+      Log.print(indent + cloudlet.getCloudletId() + indent + indent);
+
+      if (cloudlet.getCloudletStatus() == Cloudlet.SUCCESS) {
+        Log.print("SUCCESS");
+
+        Log.printLine(indent + indent + cloudlet.getResourceId()
+            + indent + indent + indent + cloudlet.getVmId()
+            + indent + indent
+            + dft.format(cloudlet.getActualCPUTime()) + indent
+            + indent + dft.format(cloudlet.getExecStartTime())
+            + indent + indent
+            + dft.format(cloudlet.getFinishTime()));
+      }
+    }
+  }
+
+  private static DatacenterBroker getDatacenterBroker(File workloadFile) {
     DatacenterBroker broker = null;
     try {
-      broker = new DatacenterBroker("Broker");
+      broker = new DynamicWorkloadDatacenterBroker("DynamicWorkloadBroker", workloadFile);
     } catch (Exception e) {
-      e.printStackTrace();
-      return null;
+      Log.printLine("Failed to create the broker");
     }
     return broker;
   }

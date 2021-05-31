@@ -12,6 +12,12 @@ import org.crunchycookie.playground.cloudsim.constants.EC2Constants.EC2Instances
 
 public class EC2InstanceCharacteristics {
 
+  private Enum<EC2Instances> id;
+  private int numberOfECU;
+  private int memoryInGB;
+  private double hourlyRateInUSD;
+  private int MIPS;
+
   public EC2InstanceCharacteristics(Enum<EC2Instances> id, int numberOfECU, int memoryInGB,
       double hourlyRateInUSD, int mips) {
     this.id = id;
@@ -23,16 +29,6 @@ public class EC2InstanceCharacteristics {
 
   public EC2InstanceCharacteristics() {
   }
-
-  private Enum<EC2Instances> id;
-
-  private int numberOfECU;
-
-  private int memoryInGB;
-
-  private double hourlyRateInUSD;
-
-  private int MIPS;
 
   public Enum<EC2Instances> getId() {
     return id;
