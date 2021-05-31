@@ -47,6 +47,17 @@ public class DynamicWorkloadSubmissionScenario {
    */
   public static void main(String[] args) {
 
+    File workloadFile = getWorkloadFile();
+    start(workloadFile);
+  }
+
+  private static File getWorkloadFile() {
+    File workloadFile = new File(DynamicWorkloadSubmissionScenario.class.getClassLoader().getResource(
+        WORKLOAD_FILE_NAME).getFile());
+    return workloadFile;
+  }
+
+  public static boolean start(File workloadFile) {
     // Number of users that are going to use the cloud.
     int numberOfUsers = 1;
 
@@ -72,14 +83,18 @@ public class DynamicWorkloadSubmissionScenario {
     }
 
     // Create broker.
-    // TODO: 2021-05-25 create broker class
-    int brokerId = 0;
-    DatacenterBroker broker = new DatacenterBroker();
+    DatacenterBroker broker = getDatacenterBroker(workloadFile);
 
-    // Create VMs.
-    List vmList = new ArrayList<Vm>();
-    populateVMs(brokerId, vmList);
+    // Start the simulation.
+    CloudSim.startSimulation();
 
+    CloudSim.stopSimulation();
+
+    // Final step: Print results when simulation is over.
+    List<Cloudlet> newList = broker.getCloudletReceivedList();
+    printCloudletList(newList);
+
+    return true;
   }
 
   /**
