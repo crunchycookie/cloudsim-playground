@@ -36,6 +36,7 @@ import org.cloudbus.cloudsim.core.SimEvent;
 import org.crunchycookie.playground.cloudsim.models.EC2InstanceCharacteristics;
 import org.crunchycookie.playground.cloudsim.models.EC2VMCandidate;
 import org.crunchycookie.playground.cloudsim.models.EC2Vm;
+import org.crunchycookie.playground.cloudsim.models.ExecutionStatistics;
 import org.crunchycookie.playground.cloudsim.models.Task;
 import org.crunchycookie.playground.cloudsim.schedulers.ExternalyManagedCloudletSchedulerSpaceShared;
 
@@ -48,16 +49,19 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
   private final static int CUSTOM_TAG_HANDLE_NEXT_WORKLOAD = CUSTOM_TAG_BASE + 1;
 
   private File workloadFile;
+
+  private ExecutionStatistics executionStatistics;
+
   private List<Pair<Instant, Task>> tasksList;
   private long initialTasksCountOnList = 0;
   private long remainingTasks = 0;
-
   // Each new VM must own a priority queue to hold the excess tasks allocated to itself.
-  private Map<Integer, PriorityQueue<Pair<Instant, Cloudlet>>> vmTaskQueues = new HashMap<>();
 
+  private Map<Integer, PriorityQueue<Pair<Instant, Cloudlet>>> vmTaskQueues = new HashMap<>();
   public DynamicWorkloadDatacenterBroker(String name, File workloadFile) throws Exception {
     super(name);
     this.workloadFile = workloadFile;
+    this.executionStatistics = new ExecutionStatistics();
   }
 
   /**
@@ -92,10 +96,17 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     int vmId = cloudlet.getVmId();
     PriorityQueue<Pair<Instant, Cloudlet>> queue = vmTaskQueues.get(vmId);
     ExternalyManagedCloudletSchedulerSpaceShared scheduler
-        = (ExternalyManagedCloudletSchedulerSpaceShared) getVmsCreatedList().get(vmId)
-        .getCloudletScheduler();
+        = (ExternalyManagedCloudletSchedulerSpaceShared) getVmsCreatedList()
+        .stream()
+        .filter(c -> c.getId() == vmId)
+        .findFirst()
+        .get().getCloudletScheduler();
     if (!queue.isEmpty() && isEnoughIdleCoresAreAvailable(queue, scheduler)) {
-      submitCloudletToDatacenter(getVmsCreatedList().get(vmId), queue.remove().getValue());
+      submitCloudletToDatacenter(getVmsCreatedList()
+          .stream()
+          .filter(v -> v.getId() == vmId)
+          .findFirst()
+          .get(), queue.remove().getValue());
     }
   }
 
@@ -113,9 +124,16 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
    */
   @Override
   protected void submitCloudlets() {
+    addVmToHostMappingExecutionStats();
 
     // Vms are created and ready. Trigger initial cloudlet submission.
     sendNow(this.getId(), CUSTOM_TAG_HANDLE_NEXT_WORKLOAD);
+  }
+
+  private void addVmToHostMappingExecutionStats() {
+    for (Vm vm : getVmsCreatedList()) {
+      executionStatistics.setVmToHostMapping(vm.getId(), vm.getHost().getId());
+    }
   }
 
   /**
@@ -141,12 +159,19 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
   }
 
   private void handleTask(Pair<Instant, Task> task) {
-    for (Vm vm : getVmsCreatedList()) {
-      if (isVMMemoryEnoughToRun(task, vm)) {
-        allocateTask(task, vm);
-        break;
-      }
-    }
+
+    // Optimum Vm should have enough memory and should have the highest idle core count.
+    Optional<Vm> optimumVm = getVmsCreatedList()
+        .stream()
+        .filter(vm -> isVMMemoryEnoughToRun(task, vm))
+        .max((vm1, vm2) -> {
+          ExternalyManagedCloudletSchedulerSpaceShared scheduler1
+              = (ExternalyManagedCloudletSchedulerSpaceShared) vm1.getCloudletScheduler();
+          ExternalyManagedCloudletSchedulerSpaceShared scheduler2
+              = (ExternalyManagedCloudletSchedulerSpaceShared) vm2.getCloudletScheduler();
+          return Integer.compare(scheduler1.getIdleCoresCount(), scheduler2.getIdleCoresCount());
+        });
+    optimumVm.ifPresent(vm -> allocateTask(task, vm));
   }
 
   private void allocateTask(Pair<Instant, Task> task, Vm vm) {
@@ -319,6 +344,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
       EC2InstanceCharacteristics vmCharacteristics = EC2_INSTANCE_TYPES.get(vmCandidateList.get(id)
           .getType());
       vmList.add(getVm(id, vmCharacteristics));
+      executionStatistics.setVmToEC2Characteristics(id, vmCharacteristics);
     }
 
     return vmList;
@@ -333,7 +359,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     int pesNumber = vmCharacteristics.getNumberOfECU(); // number of cpus
 
     // Create VM.
-    return new EC2Vm(vmId, this.getId(), mips, pesNumber, ram,
+    return new EC2Vm(vmId + 200, this.getId(), mips, pesNumber, ram,
         vmCharacteristics.getHourlyRateInUSD(), new ExternalyManagedCloudletSchedulerSpaceShared());
   }
 
@@ -384,5 +410,9 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
         && vmCandidate.getAvailableMemoryInMB() > task.getMinimumMemoryToExecute()
         && (task.getMis() / EC2_INSTANCE_TYPES.get(vmCandidate.getType()).getMIPS()
         <= task.getWallClockTime());
+  }
+
+  public ExecutionStatistics getExecutionStatistics() {
+    return executionStatistics;
   }
 }

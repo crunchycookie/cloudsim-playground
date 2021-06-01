@@ -16,7 +16,7 @@ public class Task {
 
   private String submissionTime;
 
-  private int mis;
+  private long mis;
 
   private int minimumMemoryToExecute;
 
@@ -32,11 +32,11 @@ public class Task {
     this.submissionTime = submissionTime;
   }
 
-  public int getMis() {
+  public long getMis() {
     return mis;
   }
 
-  public void setMis(int mis) {
+  public void setMis(long mis) {
     this.mis = mis;
   }
 

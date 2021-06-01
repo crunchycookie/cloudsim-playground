@@ -95,6 +95,6 @@
         <junit-jupiter-engine.version>5.3.1</junit-jupiter-engine.version>
         <commons-io.version>2.4</commons-io.version>
 
-        <cloudsim-framework-jar-location>path-to-the-cloudsim-jar</cloudsim-framework-jar-location>
+        <cloudsim-framework-jar-location>/Users/tharindu/cloud-lab/assignment-1/cloud-sim/cloudsim-3.0.3/jars/cloudsim-3.0.3.jar</cloudsim-framework-jar-location>
     </properties>
 </project>

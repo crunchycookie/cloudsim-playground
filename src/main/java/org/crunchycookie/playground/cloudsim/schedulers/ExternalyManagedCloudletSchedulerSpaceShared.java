@@ -8,6 +8,7 @@
 
 package org.crunchycookie.playground.cloudsim.schedulers;
 
+import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.CloudletSchedulerSpaceShared;
 
 /**
@@ -18,6 +19,11 @@ public class ExternalyManagedCloudletSchedulerSpaceShared extends CloudletSchedu
 
   public ExternalyManagedCloudletSchedulerSpaceShared() {
     super();
+  }
+
+  @Override
+  public double cloudletSubmit(Cloudlet cloudlet, double fileTransferTime) {
+    return super.cloudletSubmit(cloudlet, fileTransferTime);
   }
 
   public int getIdleCoresCount() {

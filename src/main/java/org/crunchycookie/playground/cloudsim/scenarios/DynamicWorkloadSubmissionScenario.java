@@ -12,7 +12,12 @@ import java.io.File;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import org.apache.commons.math3.analysis.function.Add;
+import org.apache.commons.math3.util.MathUtils;
 import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.Datacenter;
 import org.cloudbus.cloudsim.DatacenterBroker;
@@ -25,6 +30,7 @@ import org.crunchycookie.playground.cloudsim.brokers.DynamicWorkloadDatacenterBr
 import org.crunchycookie.playground.cloudsim.builders.DatacenterBuilder;
 import org.crunchycookie.playground.cloudsim.builders.DatacenterCharacteristicsBuilder;
 import org.crunchycookie.playground.cloudsim.builders.HostBuilder;
+import org.crunchycookie.playground.cloudsim.models.ExecutionStatistics;
 
 public class DynamicWorkloadSubmissionScenario {
 
@@ -52,8 +58,9 @@ public class DynamicWorkloadSubmissionScenario {
   }
 
   private static File getWorkloadFile() {
-    File workloadFile = new File(DynamicWorkloadSubmissionScenario.class.getClassLoader().getResource(
-        WORKLOAD_FILE_NAME).getFile());
+    File workloadFile = new File(
+        DynamicWorkloadSubmissionScenario.class.getClassLoader().getResource(
+            WORKLOAD_FILE_NAME).getFile());
     return workloadFile;
   }
 
@@ -73,8 +80,9 @@ public class DynamicWorkloadSubmissionScenario {
     DatacenterCharacteristics datacenterCharacteristics = getDatacenterCharacteristics(hosts);
 
     // Create the datacenter.
+    Datacenter datacenter;
     try {
-      Datacenter datacenter = getDatacenter(hosts, datacenterCharacteristics);
+      datacenter = getDatacenter(hosts, datacenterCharacteristics);
       printStatusSuccessfulMessage(datacenter);
     } catch (Exception e) {
       System.out.println("Failed to create the datacenter");
@@ -90,11 +98,68 @@ public class DynamicWorkloadSubmissionScenario {
 
     CloudSim.stopSimulation();
 
-    // Final step: Print results when simulation is over.
-    List<Cloudlet> newList = broker.getCloudletReceivedList();
-    printCloudletList(newList);
+    // Print results.
+    printResults(broker);
 
     return true;
+  }
+
+  private static void printResults(DatacenterBroker broker) {
+    // Final step: Print results when simulation is over.
+    List<Cloudlet> cloudletReceivedList = broker.getCloudletReceivedList();
+    ExecutionStatistics executionStats = ((DynamicWorkloadDatacenterBroker) broker)
+        .getExecutionStatistics();
+
+    printCloudletList(cloudletReceivedList);
+
+    Map<Integer, Double> hostToExecutionTime = getHostToExecutionTime(cloudletReceivedList,
+        executionStats);
+    printHostToExecutionTime(hostToExecutionTime);
+
+    Map<Integer, Double> vmToExecutionTime = getVmToExecutionTime(cloudletReceivedList);
+    printVmToExecutionTime(vmToExecutionTime);
+
+    double totalExecutionTime = getTotalExecutionTime(cloudletReceivedList);
+    printTotalExecutionTime(totalExecutionTime);
+  }
+
+  private static double getTotalExecutionTime(List<Cloudlet> cloudletReceivedList) {
+    Double initialCloudletExecTime = cloudletReceivedList
+        .stream()
+        .min((c1, c2) -> Double.valueOf(c1.getExecStartTime()).compareTo(c2.getExecStartTime()))
+        .get().getExecStartTime();
+    Double finalCloudletExecTime = cloudletReceivedList
+        .stream()
+        .max((c1, c2) -> Double.valueOf(c1.getFinishTime()).compareTo(c2.getFinishTime()))
+        .get().getExecStartTime();
+    double totalExecutionTime = finalCloudletExecTime - initialCloudletExecTime;
+    return totalExecutionTime;
+  }
+
+  private static Map<Integer, Double> getHostToExecutionTime(List<Cloudlet> cloudletReceivedList,
+      ExecutionStatistics executionStats) {
+    Map<Integer, Double> hostToExecutionTime = new HashMap<>();
+    for (Cloudlet cloudlet : cloudletReceivedList) {
+      Integer hostId = executionStats.getMappedHost(cloudlet.getVmId());
+      hostToExecutionTime.put(hostId, getUpdatedExecutionTime(hostToExecutionTime, cloudlet, hostId));
+    }
+    return hostToExecutionTime;
+  }
+
+  private static Map<Integer, Double> getVmToExecutionTime(List<Cloudlet> cloudletReceivedList) {
+    Map<Integer, Double> vmToExecutionTime = new HashMap<>();
+    for (Cloudlet c : cloudletReceivedList) {
+      Double updatedExecutionTime = vmToExecutionTime.get(c.getVmId()) != null ? vmToExecutionTime
+          .get(c.getVmId()) + c.getActualCPUTime() : c.getActualCPUTime();
+      vmToExecutionTime.put(c.getVmId(), updatedExecutionTime);
+    }
+    return vmToExecutionTime;
+  }
+
+  private static double getUpdatedExecutionTime(Map<Integer, Double> hostToExecutionTime, Cloudlet cloudlet,
+      Integer hostId) {
+    return hostToExecutionTime.get(hostId) != null ? hostToExecutionTime.get(hostId) + cloudlet
+        .getActualCPUTime() : cloudlet.getActualCPUTime();
   }
 
   /**
@@ -114,6 +179,7 @@ public class DynamicWorkloadSubmissionScenario {
         + "Start Time" + indent + "Finish Time");
 
     DecimalFormat dft = new DecimalFormat("###.##");
+
     for (int i = 0; i < size; i++) {
       cloudlet = list.get(i);
       Log.print(indent + cloudlet.getCloudletId() + indent + indent);
@@ -129,6 +195,40 @@ public class DynamicWorkloadSubmissionScenario {
             + indent + indent
             + dft.format(cloudlet.getFinishTime()));
       }
+    }
+  }
+
+  private static void printHostToExecutionTime(Map<Integer, Double> hostToExecutionTime) {
+
+    String indent = "    ";
+    Log.printLine();
+    Log.printLine("========== Host to execution time ==========");
+    Log.printLine("Host ID" + indent + "Execution Time");
+
+    for (Entry<Integer, Double> mapping : hostToExecutionTime.entrySet()) {
+      Log.printLine(indent + indent + mapping.getKey()
+          + indent + indent + indent + mapping.getValue());
+    }
+  }
+
+  private static void printTotalExecutionTime(Double totalExecTime) {
+
+    String indent = "    ";
+    Log.printLine();
+    Log.printLine("========== Total execution time ==========");
+    Log.printLine("Total Execution Time = " + totalExecTime);
+  }
+
+  private static void printVmToExecutionTime(Map<Integer, Double> vmToExecutionTime) {
+
+    String indent = "    ";
+    Log.printLine();
+    Log.printLine("========== VM to execution time ==========");
+    Log.printLine("Vm ID" + indent + "Execution Time");
+
+    for (Entry<Integer, Double> mapping : vmToExecutionTime.entrySet()) {
+      Log.printLine(indent + indent + mapping.getKey()
+          + indent + indent + indent + mapping.getValue());
     }
   }
 
@@ -185,7 +285,7 @@ public class DynamicWorkloadSubmissionScenario {
     List<Host> hosts = new ArrayList<>();
     for (int index = 0; index < NUMBER_OF_HOSTS; index++) {
       hosts.add(
-          new HostBuilder(index)
+          new HostBuilder(index + 100)
               .withMipsPerCore(NUMBER_OF_MIPS_PER_HOST)
               .withNumberOfCores(NUMBER_OF_CORES_PER_HOST)
               .withAmountOfRamInGBs(AMOUNT_OF_RAM_PER_HOST_IN_GB)

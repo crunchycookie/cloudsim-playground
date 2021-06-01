@@ -12,7 +12,9 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.io.FileUtils;
 import org.crunchycookie.playground.cloudsim.models.Task;
@@ -39,7 +41,34 @@ public class TestDynamicWorkloadSubmissionScenario {
     Assertions.assertTrue(DynamicWorkloadSubmissionScenario.start(workloadFile));
   }
 
-  private String getTaskString(Instant currentTime, int mis, int minMemory, int minStorage,
+  @Test
+  public void testDynamicWorkloadWithHeavyLoad() throws IOException {
+
+    List<String> heavyLoad = getHeavyLoad();
+    File workloadFile = new File("src/test/resources/workload-file.txt");
+    FileUtils.writeLines(workloadFile, heavyLoad);
+
+    Assertions.assertTrue(DynamicWorkloadSubmissionScenario.start(workloadFile));
+  }
+
+  private List<String> getHeavyLoad() {
+    Instant currentTime = Instant.now();
+    List<String> heavyLoad = new ArrayList<>();
+    Random random = new Random();
+    int numberOfTasks = 1000;
+    for (int i = 0; i < numberOfTasks; i++) {
+      heavyLoad.add(getTaskString(
+          currentTime.plus(5 + 2 * i, ChronoUnit.SECONDS),
+          random.longs(1000000000L, 10000000000L).findFirst().getAsLong(),
+          random.ints(800, 15000).findFirst().getAsInt(),
+          random.ints(1500, 5000).findFirst().getAsInt(),
+          random.ints(100, 200).findFirst().getAsInt()
+      ));
+    }
+    return heavyLoad;
+  }
+
+  private String getTaskString(Instant currentTime, long mis, int minMemory, int minStorage,
       int wallclockTime) {
     Task task = new Task();
     task.setSubmissionTime(currentTime.toString());

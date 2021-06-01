@@ -28,7 +28,7 @@ public class FileOperationUtils {
 
       Task currentTask = new Task();
       currentTask.setSubmissionTime(splitedCurrentLine[0]);
-      currentTask.setMis(Integer.parseInt(splitedCurrentLine[1]));
+      currentTask.setMis(Long.parseLong(splitedCurrentLine[1]));
       currentTask.setMinimumMemoryToExecute(Integer.parseInt(splitedCurrentLine[2]));
       currentTask.setMinimumStorageToExecute(Integer.parseInt(splitedCurrentLine[3]));
       currentTask.setWallClockTime(Integer.parseInt(splitedCurrentLine[4]));
