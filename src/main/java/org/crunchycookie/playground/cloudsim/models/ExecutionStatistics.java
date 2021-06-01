@@ -36,12 +36,12 @@ public class ExecutionStatistics {
     return vmToHostMapping;
   }
 
-  public Integer getMappedHost(Integer vmId) {
-    return vmToHostMapping.get(vmId);
-  }
-
   public void setVmToHostMapping(Map<Integer, Integer> vmToHostMapping) {
     this.vmToHostMapping = vmToHostMapping;
+  }
+
+  public Integer getMappedHost(Integer vmId) {
+    return vmToHostMapping.get(vmId);
   }
 
   public Map<Integer, EC2InstanceCharacteristics> getVmToEC2Characteristics() {

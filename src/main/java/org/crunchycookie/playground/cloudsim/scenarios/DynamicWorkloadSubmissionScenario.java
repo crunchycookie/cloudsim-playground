@@ -154,7 +154,8 @@ public class DynamicWorkloadSubmissionScenario {
     Map<Integer, Double> hostToExecutionTime = new HashMap<>();
     for (Cloudlet cloudlet : cloudletReceivedList) {
       Integer hostId = executionStats.getMappedHost(cloudlet.getVmId());
-      hostToExecutionTime.put(hostId, getUpdatedExecutionTime(hostToExecutionTime, cloudlet, hostId));
+      hostToExecutionTime
+          .put(hostId, getUpdatedExecutionTime(hostToExecutionTime, cloudlet, hostId));
     }
     return hostToExecutionTime;
   }
@@ -169,7 +170,8 @@ public class DynamicWorkloadSubmissionScenario {
     return vmToExecutionTime;
   }
 
-  private static double getUpdatedExecutionTime(Map<Integer, Double> hostToExecutionTime, Cloudlet cloudlet,
+  private static double getUpdatedExecutionTime(Map<Integer, Double> hostToExecutionTime,
+      Cloudlet cloudlet,
       Integer hostId) {
     return hostToExecutionTime.get(hostId) != null ? hostToExecutionTime.get(hostId) + cloudlet
         .getActualCPUTime() : cloudlet.getActualCPUTime();
