@@ -9,6 +9,8 @@
 package org.crunchycookie.playground.cloudsim.scenarios;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -27,6 +29,7 @@ import org.cloudbus.cloudsim.Log;
 import org.cloudbus.cloudsim.VmAllocationPolicySimple;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.crunchycookie.playground.cloudsim.brokers.DynamicWorkloadDatacenterBroker;
+import org.crunchycookie.playground.cloudsim.brokers.DynamicWorkloadDatacenterBroker.VmOptimizingMethod;
 import org.crunchycookie.playground.cloudsim.builders.DatacenterBuilder;
 import org.crunchycookie.playground.cloudsim.builders.DatacenterCharacteristicsBuilder;
 import org.crunchycookie.playground.cloudsim.builders.HostBuilder;
@@ -54,7 +57,7 @@ public class DynamicWorkloadSubmissionScenario {
   public static void main(String[] args) {
 
     File workloadFile = getWorkloadFile();
-    start(workloadFile);
+    start(workloadFile, VmOptimizingMethod.VM_COSTS_FOCUSED, "simulation-results.txt");
   }
 
   private static File getWorkloadFile() {
@@ -64,7 +67,8 @@ public class DynamicWorkloadSubmissionScenario {
     return workloadFile;
   }
 
-  public static boolean start(File workloadFile) {
+  public static boolean start(File workloadFile, Enum<VmOptimizingMethod> vmOptimizingMethod,
+      String simulationResultsFileName) {
     // Number of users that are going to use the cloud.
     int numberOfUsers = 1;
 
@@ -91,7 +95,7 @@ public class DynamicWorkloadSubmissionScenario {
     }
 
     // Create broker.
-    DatacenterBroker broker = getDatacenterBroker(workloadFile);
+    DatacenterBroker broker = getDatacenterBroker(workloadFile, vmOptimizingMethod);
 
     // Start the simulation.
     CloudSim.startSimulation();
@@ -99,31 +103,47 @@ public class DynamicWorkloadSubmissionScenario {
     CloudSim.stopSimulation();
 
     // Print results.
-    printResults(broker);
+    printResults(broker, simulationResultsFileName);
 
     return true;
   }
 
-  private static void printResults(DatacenterBroker broker) {
-    // Final step: Print results when simulation is over.
-    List<Cloudlet> cloudletReceivedList = broker.getCloudletReceivedList();
-    ExecutionStatistics executionStats = ((DynamicWorkloadDatacenterBroker) broker)
-        .getExecutionStatistics();
+  private static void printResults(DatacenterBroker broker, String simulationResultsFileName) {
 
-    printCloudletList(cloudletReceivedList);
+    String outputFilePath = "src/test/resources/" + simulationResultsFileName;
 
-    Map<Integer, Double> hostToExecutionTime = getHostToExecutionTime(cloudletReceivedList,
-        executionStats);
-    printHostToExecutionTime(hostToExecutionTime);
+    File simulationResultsFile =  new File(outputFilePath);
+    if (simulationResultsFile.exists()) {
+      simulationResultsFile.delete();
+    }
 
-    Map<Integer, Double> vmToExecutionTime = getVmToExecutionTime(cloudletReceivedList);
-    printVmToExecutionTime(vmToExecutionTime);
+    OutputStream existingOStream = Log.getOutput();
+    try (FileOutputStream fout = new FileOutputStream(outputFilePath)) {
+      Log.setOutput(fout);
+      // Final step: Print results when simulation is over.
+      List<Cloudlet> cloudletReceivedList = broker.getCloudletReceivedList();
+      ExecutionStatistics executionStats = ((DynamicWorkloadDatacenterBroker) broker)
+          .getExecutionStatistics();
 
-    Double totalCostInUSD = getTotalCostInUSD(executionStats, vmToExecutionTime);
-    printTotalCost(totalCostInUSD);
+//      printCloudletList(cloudletReceivedList);
 
-    Double totalExecutionTime = getTotalExecutionTime(cloudletReceivedList);
-    printTotalExecutionTime(totalExecutionTime);
+      Map<Integer, Double> hostToExecutionTime = getHostToExecutionTime(cloudletReceivedList,
+          executionStats);
+      printHostToExecutionTime(hostToExecutionTime);
+
+      Map<Integer, Double> vmToExecutionTime = getVmToExecutionTime(cloudletReceivedList);
+      printVmToExecutionTime(vmToExecutionTime);
+
+      Double totalCostInUSD = getTotalCostInUSD(executionStats, vmToExecutionTime);
+      printTotalCost(totalCostInUSD);
+
+      Double totalExecutionTime = getTotalExecutionTime(cloudletReceivedList);
+      printTotalExecutionTime(totalExecutionTime);
+    } catch (Exception e) {
+      System.out.println("Failed to writing results to the file");
+    } finally {
+      Log.setOutput(existingOStream);
+    }
   }
 
   private static Double getTotalCostInUSD(ExecutionStatistics executionStats,
@@ -259,10 +279,12 @@ public class DynamicWorkloadSubmissionScenario {
     }
   }
 
-  private static DatacenterBroker getDatacenterBroker(File workloadFile) {
+  private static DatacenterBroker getDatacenterBroker(File workloadFile,
+      Enum<VmOptimizingMethod> vmOptimizingMethodEnum) {
     DatacenterBroker broker = null;
     try {
-      broker = new DynamicWorkloadDatacenterBroker("DynamicWorkloadBroker", workloadFile);
+      broker = new DynamicWorkloadDatacenterBroker("DynamicWorkloadBroker", workloadFile,
+          vmOptimizingMethodEnum);
     } catch (Exception e) {
       Log.printLine("Failed to create the broker");
     }

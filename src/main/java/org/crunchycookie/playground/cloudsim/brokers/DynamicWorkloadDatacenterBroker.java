@@ -52,11 +52,19 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
   private List<Pair<Instant, Task>> tasksList;
   private long initialTasksCountOnList = 0;
   private long remainingTasks = 0;
+  private Enum<VmOptimizingMethod> vmOptimizationMethod = null;
 
-  public DynamicWorkloadDatacenterBroker(String name, File workloadFile) throws Exception {
+  public enum VmOptimizingMethod {
+    VM_CORES_FOCUSED,
+    VM_COSTS_FOCUSED
+  }
+
+  public DynamicWorkloadDatacenterBroker(String name, File workloadFile,
+      Enum<VmOptimizingMethod> vmOptimizationMethod) throws Exception {
     super(name);
     this.workloadFile = workloadFile;
     this.executionStatistics = new ExecutionStatistics();
+    this.vmOptimizationMethod = vmOptimizationMethod;
   }
 
   /**
@@ -358,6 +366,15 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
         .collect(Collectors.toList());
   }
 
+  /**
+   * Iterate through tasks...
+   *
+   * 1. If VM instance type has processing power and memory requirements, choose most affordable
+   * of such VM instance type as a new VM.
+   * 2. If an already chosen new VM is capable of handling the current task in terms of the
+   * capacities, no need to select another new VM and task is skipped.
+   * 3. In the end, use choosen set of VMs as the optimized VM list.
+   */
   private List<EC2Vm> getOptimizedVmList(Optional<List<Task>> tasks) {
 
     // Analyze the tasks list and derive number and types of VMs required.
@@ -373,7 +390,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
       }
 
       // If not, select a suitable EC2 candidate to execute the task.
-      Optional<EC2InstanceCharacteristics> ec2InstanceCandidate = getEC2InstanceCandidate(task);
+      Optional<EC2InstanceCharacteristics> ec2InstanceCandidate = getEc2InstanceCandidate(task);
       if (ec2InstanceCandidate.isEmpty()) {
         Log.printLine("Skipping the task submitted at  " + task.getSubmissionTime() + ", because "
             + "none of the available EC2 VMs cannot execute this task");
@@ -385,13 +402,28 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     }
 
     // Convert vm candidates to CloudSim VMs and set them in the broker.
+    List<EC2Vm> vmList = convertVMCandidatesToVMObjects(vmCandidateList);
+
+    return vmList;
+  }
+
+  private Optional<EC2InstanceCharacteristics> getEc2InstanceCandidate(Task task) {
+    if (vmOptimizationMethod == VmOptimizingMethod.VM_COSTS_FOCUSED) {
+      return getEC2InstanceCandidateAtLowestCost(task);
+    } else if (vmOptimizationMethod == VmOptimizingMethod.VM_CORES_FOCUSED) {
+      return getEC2InstanceCandidateWithHighestCores(task);
+    } else {
+      return Optional.empty();
+    }
+  }
+
+  private List<EC2Vm> convertVMCandidatesToVMObjects(List<EC2VMCandidate> vmCandidateList) {
     List<EC2Vm> vmList = new ArrayList<>();
     for (int id = 0; id < vmCandidateList.size(); id++) {
       EC2InstanceCharacteristics vmCharacteristics = EC2_INSTANCE_TYPES.get(vmCandidateList.get(id)
           .getType());
       vmList.add(getVm(id, vmCharacteristics));
     }
-
     return vmList;
   }
 
@@ -410,7 +442,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
         vmCharacteristics.getHourlyRateInUSD(), new ExternalyManagedCloudletSchedulerSpaceShared());
   }
 
-  private Optional<EC2InstanceCharacteristics> getEC2InstanceCandidate(Task task) {
+  private Optional<EC2InstanceCharacteristics> getEC2InstanceCandidateAtLowestCost(Task task) {
     /*
     If an already selected VM is not available to handle this task, we need to find a suitable
     EC2 instance capable of handling the task.
@@ -425,6 +457,28 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     Optional<EC2InstanceCharacteristics> ec2VMType = EC2_INSTANCE_TYPES.values().stream()
         .sorted((vmTypeA, vmTypeB) -> ((Double) (vmTypeA.getHourlyRateInUSD()))
             .compareTo(vmTypeB.getHourlyRateInUSD()))
+        .filter(vmType -> (task.getMis() / vmType.getMIPS() <= task.getWallClockTime())
+            && (task.getMinimumMemoryToExecute() <= (vmType.getMemoryInGB() * 1024)))
+        .findFirst();
+
+    return ec2VMType;
+  }
+
+  private Optional<EC2InstanceCharacteristics> getEC2InstanceCandidateWithHighestCores(Task task) {
+    /*
+    If an already selected VM is not available to handle this task, we need to find a suitable
+    EC2 instance capable of handling the task.
+
+    To do that,
+
+    Iterate through instances in a core count ascending way, and grab the first instance which is able
+    to meet the deadline of the task and also the memory requirements.
+
+    Assumption: Each task will be occupied by a single ECU in space shared way.
+     */
+    Optional<EC2InstanceCharacteristics> ec2VMType = EC2_INSTANCE_TYPES.values().stream()
+        .sorted((vmTypeA, vmTypeB) -> Integer.valueOf(vmTypeA.getNumberOfECU()).compareTo(
+            vmTypeB.getNumberOfECU()))
         .filter(vmType -> (task.getMis() / vmType.getMIPS() <= task.getWallClockTime())
             && (task.getMinimumMemoryToExecute() <= (vmType.getMemoryInGB() * 1024)))
         .findFirst();
