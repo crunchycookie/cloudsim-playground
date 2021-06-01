@@ -28,8 +28,8 @@ public class ExecutionStatistics {
     this.vmToHostMapping.put(vmId, hostId);
   }
 
-  public void setVmToEC2Characteristics(Integer hostId, EC2InstanceCharacteristics host) {
-    this.vmToEC2Characteristics.put(hostId, host);
+  public void setVmToEC2Characteristics(Integer vmId, EC2InstanceCharacteristics vm) {
+    this.vmToEC2Characteristics.put(vmId, vm);
   }
 
   public Map<Integer, Integer> getVmToHostMapping() {

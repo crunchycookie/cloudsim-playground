@@ -12,12 +12,12 @@ import java.io.File;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import org.apache.commons.math3.analysis.function.Add;
-import org.apache.commons.math3.util.MathUtils;
+import java.util.stream.Collectors;
 import org.cloudbus.cloudsim.Cloudlet;
 import org.cloudbus.cloudsim.Datacenter;
 import org.cloudbus.cloudsim.DatacenterBroker;
@@ -119,8 +119,21 @@ public class DynamicWorkloadSubmissionScenario {
     Map<Integer, Double> vmToExecutionTime = getVmToExecutionTime(cloudletReceivedList);
     printVmToExecutionTime(vmToExecutionTime);
 
-    double totalExecutionTime = getTotalExecutionTime(cloudletReceivedList);
+    Double totalCostInUSD = getTotalCostInUSD(executionStats, vmToExecutionTime);
+    printTotalCost(totalCostInUSD);
+
+    Double totalExecutionTime = getTotalExecutionTime(cloudletReceivedList);
     printTotalExecutionTime(totalExecutionTime);
+  }
+
+  private static Double getTotalCostInUSD(ExecutionStatistics executionStats,
+      Map<Integer, Double> vmToExecutionTime) {
+    Double totalCostInUSD = 0D;
+    for (Entry<Integer, Double> vmExec : vmToExecutionTime.entrySet()) {
+      totalCostInUSD += executionStats.getVmToEC2Characteristics().get(vmExec.getKey())
+          .getHourlyRateInUSD() * (vmExec.getValue() / 3600);
+    }
+    return totalCostInUSD;
   }
 
   private static double getTotalExecutionTime(List<Cloudlet> cloudletReceivedList) {
@@ -205,7 +218,9 @@ public class DynamicWorkloadSubmissionScenario {
     Log.printLine("========== Host to execution time ==========");
     Log.printLine("Host ID" + indent + "Execution Time");
 
-    for (Entry<Integer, Double> mapping : hostToExecutionTime.entrySet()) {
+    for (Entry<Integer, Double> mapping : hostToExecutionTime.entrySet().stream().sorted(
+        Comparator.comparing(Entry::getKey)
+    ).collect(Collectors.toList())) {
       Log.printLine(indent + indent + mapping.getKey()
           + indent + indent + indent + mapping.getValue());
     }
@@ -219,6 +234,14 @@ public class DynamicWorkloadSubmissionScenario {
     Log.printLine("Total Execution Time = " + totalExecTime);
   }
 
+  private static void printTotalCost(Double cost) {
+
+    String indent = "    ";
+    Log.printLine();
+    Log.printLine("========== Total Cost in USD ==========");
+    Log.printLine("Total Cost = " + cost);
+  }
+
   private static void printVmToExecutionTime(Map<Integer, Double> vmToExecutionTime) {
 
     String indent = "    ";
@@ -226,7 +249,9 @@ public class DynamicWorkloadSubmissionScenario {
     Log.printLine("========== VM to execution time ==========");
     Log.printLine("Vm ID" + indent + "Execution Time");
 
-    for (Entry<Integer, Double> mapping : vmToExecutionTime.entrySet()) {
+    for (Entry<Integer, Double> mapping : vmToExecutionTime.entrySet().stream().sorted(
+        Comparator.comparing(Entry::getKey)
+    ).collect(Collectors.toList())) {
       Log.printLine(indent + indent + mapping.getKey()
           + indent + indent + indent + mapping.getValue());
     }

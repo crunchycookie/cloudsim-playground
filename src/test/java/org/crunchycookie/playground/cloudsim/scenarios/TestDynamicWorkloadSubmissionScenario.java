@@ -48,7 +48,11 @@ public class TestDynamicWorkloadSubmissionScenario {
     File workloadFile = new File("src/test/resources/workload-file.txt");
     FileUtils.writeLines(workloadFile, heavyLoad);
 
-    Assertions.assertTrue(DynamicWorkloadSubmissionScenario.start(workloadFile));
+    try {
+      Assertions.assertTrue(DynamicWorkloadSubmissionScenario.start(workloadFile));
+    } finally {
+      workloadFile.delete();
+    }
   }
 
   private List<String> getHeavyLoad() {
@@ -58,11 +62,11 @@ public class TestDynamicWorkloadSubmissionScenario {
     int numberOfTasks = 1000;
     for (int i = 0; i < numberOfTasks; i++) {
       heavyLoad.add(getTaskString(
-          currentTime.plus(5 + 2 * i, ChronoUnit.SECONDS),
-          random.longs(1000000000L, 10000000000L).findFirst().getAsLong(),
-          random.ints(800, 15000).findFirst().getAsInt(),
-          random.ints(1500, 5000).findFirst().getAsInt(),
-          random.ints(100, 200).findFirst().getAsInt()
+          currentTime.plus(5 + 5 * i, ChronoUnit.SECONDS),
+          random.longs(1000000L, 10000000L).findFirst().getAsLong(), // MIs (millions of instructions).
+          random.ints(10, 15000).findFirst().getAsInt(), // RAM: In MBs.
+          random.ints(1500, 5000).findFirst().getAsInt(), // Storage:
+          random.ints(1000000, 10000000).findFirst().getAsInt() // Wallclock Time: In Seconds.
       ));
     }
     return heavyLoad;
@@ -75,7 +79,7 @@ public class TestDynamicWorkloadSubmissionScenario {
     task.setMis(mis);
     task.setMinimumMemoryToExecute(minMemory);
     task.setMinimumStorageToExecute(minStorage);
-    task.setWallClockTime((int) TimeUnit.MINUTES.toMillis(wallclockTime));
+    task.setWallClockTime(wallclockTime);
     return task.toString();
   }
 }

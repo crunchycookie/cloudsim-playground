@@ -163,7 +163,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     // Optimum Vm should have enough memory and should have the highest idle core count.
     Optional<Vm> optimumVm = getVmsCreatedList()
         .stream()
-        .filter(vm -> isVMMemoryEnoughToRun(task, vm))
+//        .filter(vm -> isVMMemoryEnoughToRun(task, vm))
         .max((vm1, vm2) -> {
           ExternalyManagedCloudletSchedulerSpaceShared scheduler1
               = (ExternalyManagedCloudletSchedulerSpaceShared) vm1.getCloudletScheduler();
@@ -208,7 +208,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
   }
 
   private boolean isVMMemoryEnoughToRun(Pair<Instant, Task> task, Vm vm) {
-    return task.getValue().getMinimumMemoryToExecute() <= vm.getRam();
+    return task.getValue().getMinimumMemoryToExecute() <= (vm.getRam() - vm.getCurrentAllocatedRam());
   }
 
   private void scheduleNextWorkload() {
@@ -223,7 +223,7 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
 
               // Schedule identified workload to it's submission time.
               send(this.getId(), Duration.between(currentSimulationTime, getNextWorkloadStartTime(
-                  nextWorkload)).toMillis(), CUSTOM_TAG_HANDLE_NEXT_WORKLOAD, nextWorkload);
+                  nextWorkload)).toSeconds(), CUSTOM_TAG_HANDLE_NEXT_WORKLOAD, nextWorkload);
 
               // Remove already scheduled workload from the list.
               tasksList.removeIf(i -> i.getKey().equals(getNextWorkloadStartTime(nextWorkload)));
@@ -344,7 +344,6 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
       EC2InstanceCharacteristics vmCharacteristics = EC2_INSTANCE_TYPES.get(vmCandidateList.get(id)
           .getType());
       vmList.add(getVm(id, vmCharacteristics));
-      executionStatistics.setVmToEC2Characteristics(id, vmCharacteristics);
     }
 
     return vmList;
@@ -353,13 +352,15 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
   private EC2Vm getVm(int id, EC2InstanceCharacteristics vmCharacteristics) {
 
     // VM description.
-    int vmId = id;
+    int vmId = id + 200;
     int mips = vmCharacteristics.getMIPS();
     int ram = vmCharacteristics.getMemoryInGB() * 1024; // vm memory (MB)
     int pesNumber = vmCharacteristics.getNumberOfECU(); // number of cpus
 
+    executionStatistics.setVmToEC2Characteristics(vmId, vmCharacteristics);
+
     // Create VM.
-    return new EC2Vm(vmId + 200, this.getId(), mips, pesNumber, ram,
+    return new EC2Vm(vmId, this.getId(), mips, pesNumber, ram,
         vmCharacteristics.getHourlyRateInUSD(), new ExternalyManagedCloudletSchedulerSpaceShared());
   }
 
