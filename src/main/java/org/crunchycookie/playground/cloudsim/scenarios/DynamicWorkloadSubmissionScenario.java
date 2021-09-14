@@ -329,7 +329,7 @@ public class DynamicWorkloadSubmissionScenario {
         .build();
   }
 
-  private static List<Host> getHosts() {
+  private static List<Host>  getHosts() {
 
     List<Host> hosts = new ArrayList<>();
     for (int index = 0; index < NUMBER_OF_HOSTS; index++) {

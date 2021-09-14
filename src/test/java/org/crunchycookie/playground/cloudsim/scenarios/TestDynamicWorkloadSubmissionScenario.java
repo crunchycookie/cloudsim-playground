@@ -65,7 +65,7 @@ public class TestDynamicWorkloadSubmissionScenario {
     Instant currentTime = Instant.now();
     List<String> heavyLoad = new ArrayList<>();
     Random random = new Random();
-    int numberOfTasks = 10000;
+    int numberOfTasks = 20000;
     for (int i = 0; i < numberOfTasks; i++) {
       heavyLoad.add(getTaskString(
           currentTime.plus(5 + 5 * i, ChronoUnit.SECONDS),

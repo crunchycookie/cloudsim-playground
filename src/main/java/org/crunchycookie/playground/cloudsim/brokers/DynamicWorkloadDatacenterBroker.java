@@ -477,8 +477,8 @@ public class DynamicWorkloadDatacenterBroker extends DatacenterBroker {
     Assumption: Each task will be occupied by a single ECU in space shared way.
      */
     Optional<EC2InstanceCharacteristics> ec2VMType = EC2_INSTANCE_TYPES.values().stream()
-        .sorted((vmTypeA, vmTypeB) -> Integer.valueOf(vmTypeA.getNumberOfECU()).compareTo(
-            vmTypeB.getNumberOfECU()))
+        .sorted((vmTypeA, vmTypeB) -> Integer.valueOf(vmTypeB.getNumberOfECU()).compareTo(
+            vmTypeA.getNumberOfECU()))
         .filter(vmType -> (task.getMis() / vmType.getMIPS() <= task.getWallClockTime())
             && (task.getMinimumMemoryToExecute() <= (vmType.getMemoryInGB() * 1024)))
         .findFirst();
